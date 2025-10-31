@@ -5,6 +5,8 @@ import pandas as pd
 from fix_ordering import fix_game_ordering
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
 
 # Get the sorted dataframe by calling the function
 df_sorted = fix_game_ordering()
@@ -21,7 +23,20 @@ df_sorted["day_code"] = df_sorted["Date"].dt.dayofweek
 # Create a column for the result
 df_sorted["target"] = (df_sorted["Team_Score"] > df_sorted["Opponent_Score"]).astype(int)
 
+# print(df_sorted.head())
+
+# Create the model; estimators = number of trees; min_samples_split = minimum number of samples required to split a node
 # rf = RandomForestClassifier(n_estimators=50, min_samples_split=10, random_state=1)
 
-train = df_sorted[df_sorted["Date"] < "2025-04-13"]
-print(df_sorted)
+# train = df_sorted[df_sorted["Date"] < "2025-04-13"]
+# test = df_sorted[df_sorted["Date"] > "2025-04-13"]
+# predictors = ["opp_code", "hour", "day_code"]
+# rf.fit(train[predictors], train["target"])
+
+# preds = rf.predict(test[predictors])
+
+# acc = accuracy_score(test["target"], preds)
+
+# combined = pd.DataFrame(dict(actual=test["target"],prediction=preds))
+
+# grouped_matches = df_sorted.groupby("Team Name")

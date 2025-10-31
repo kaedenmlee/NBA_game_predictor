@@ -31,7 +31,7 @@ def scrape_nba_data_with_team_names():
         # Get standings page
         standings_url = f"https://www.basketball-reference.com/leagues/NBA_{year}_standings.html"
         response = requests.get(standings_url, headers=headers)
-        time.sleep(3)
+        time.sleep(4)
         
         soup = BeautifulSoup(response.text, "html.parser")
         comments = soup.find_all(string=lambda text: isinstance(text, Comment))
@@ -57,7 +57,7 @@ def scrape_nba_data_with_team_names():
             if team_link and '/teams/' in team_link.get('href', ''):
                 team_url = team_link.get('href')
                 team_name = team_link.get_text().strip()
-                team_abbr = team_url.split('/')[-1].replace('.html', '')
+                team_abbr = team_url.split('/')[-2].replace('.html', '')
                 
                 team_info.append({
                     'team_name': team_name,
@@ -72,7 +72,7 @@ def scrape_nba_data_with_team_names():
         for i, team in enumerate(team_info):
             try:
                 print(f"Processing {team['team_name']} ({i+1}/{len(team_info)})")
-                
+                time.sleep(1)
                 # Get games data
                 games_url = f"https://www.basketball-reference.com{team['team_url'].replace('.html', '_games.html')}"
                 games_response = requests.get(games_url, headers=headers)
@@ -83,6 +83,23 @@ def scrape_nba_data_with_team_names():
                 # filter out future games (games with out a LOG time are not played yet)
                 games = games[games['LOG'].notna()].reset_index(drop=True)
                 
+                # the game_location is unnamed on the website, so I have to manually check for this column
+                location_col = None
+                for col in games.columns:
+                    if games[col].dtype == object:
+                        if(games[col] == '@').any():
+                            location_col = col
+                            break
+                        
+                # create Home column, 1 = Home, 0 = Away
+                if location_col is not None:
+                    games['Home'] = (games[location_col] != '@').astype(int)
+                    # if empty, it is a home game
+                    games['Home'] = games['Home'].fillna(1).astype(int)
+                else:
+                    games['Home'] = None        
+                    
+                    
                 if len(games) == 0:
                     print(f"No games found for {team['team_name']}")
                     continue
@@ -168,7 +185,8 @@ def scrape_nba_data_with_team_names():
             'STL': 'Steals',
             'BLK': 'Blocks',
             'TOV': 'Turnovers',
-            'PF': 'Personal_Fouls'
+            'PF': 'Personal_Fouls',
+            'Home': 'Home'
         }
         
         # Select columns to keep
@@ -176,7 +194,7 @@ def scrape_nba_data_with_team_names():
             'Team_Name', 'Team_Abbr', 'Season', 'G', 'Date', 'Start (ET)', 'Opponent', 
             'Tm', 'Opp', 'W', 'L', 'Streak', 'Attend.', 'LOG', 'Notes', 'Game_Num',
             'FG', 'FGA', 'FG%', '3P', '3PA', '3P%', '2P', '2PA', '2P%',
-            'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB', 'AST', 'STL', 'BLK', 'TOV', 'PF'
+            'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB', 'AST', 'STL', 'BLK', 'TOV', 'PF','Home'
         ]
         
         df_clean = combined_data[columns_to_keep].copy()
@@ -185,8 +203,8 @@ def scrape_nba_data_with_team_names():
         # Reorder columns
         column_order = [
             'Team_Name', 'Team_Abbr', 'Season', 'Game_Number', 'Date', 'Start_Time', 'Opponent',
-            'Team_Score', 'Opponent_Score', 'Win', 'Loss', 'Streak', 'Attendance', 
-            'Game_Length', 'Notes', 'Game_Sequence',
+            'Home','Team_Score', 'Opponent_Score', 'Win', 'Loss', 'Streak', 
+            'Attendance', 'Game_Length', 'Notes', 'Game_Sequence',
             'Field_Goals_Made', 'Field_Goals_Attempted', 'Field_Goal_Percentage',
             'Three_Pointers_Made', 'Three_Pointers_Attempted', 'Three_Point_Percentage',
             'Two_Pointers_Made', 'Two_Pointers_Attempted', 'Two_Point_Percentage',
@@ -197,11 +215,16 @@ def scrape_nba_data_with_team_names():
         
         df_final = df_clean[column_order]
         
-        # Sort by Team_Name, Season, Game_Number
-        df_final = df_final.sort_values(['Team_Name', 'Season', 'Game_Number']).reset_index(drop=True)
-        
+        # Convert Date column to datetime
+        df_final['Date'] = pd.to_datetime(df_final['Date'], format='%a, %b %d, %Y', errors='coerce')
+        # Sort by Team_Name, Season, and Date
+        df_final = df_final.sort_values(['Team_Name', 'Season', 'Date']).reset_index(drop=True)
+        # Reassign Game_Number to be sequential within each team/season
+        df_final['Game_Number'] = df_final.groupby(['Team_Name', 'Season']).cumcount() + 1
+        # Convert Date back to string format for consistency
+        df_final['Date'] = df_final['Date'].dt.strftime('%a, %b %d, %Y')
         # Save the data
-        df_final.to_csv('nba_data_with_team_names.csv', index=False)
+        df_final.to_csv('nba_scrape_data.csv', index=False)
         
         print(f"\n=== Final Results ===")
         print(f"Total games: {len(df_final)}")
@@ -212,7 +235,7 @@ def scrape_nba_data_with_team_names():
         
         # Show sample
         print("\nSample data:")
-        print(df_final[['Team_Name', 'Team_Abbr', 'Season', 'Game_Number', 'Opponent']].head(10))
+        print(df_final.head())
         
         return df_final
     else:
