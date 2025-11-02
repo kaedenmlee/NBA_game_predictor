@@ -2,7 +2,7 @@
 
 **Author:** Kaeden Lee  
 **Started:** October 24, 2025  
-**Status:** In Development
+**Status:** In Development - Currently working on database and backend.
 
 ## Overview
 
@@ -256,4 +256,4 @@ Email: kaedenmlee@gmail.com
 
 ---
 
-*Last Updated: October 31, 2025*
+*Last Updated: November 1, 2025*
