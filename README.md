@@ -96,11 +96,11 @@ lxml>=4.9.0
 ```
 NBA_game_predictor/
 ├── stat_scraping/
-│   ├── scraping.py              # Main scraping script
+|   ├── initial_scraping_tests.py    # initial scraping tests
+│   ├── final_scraping.py              # Main scraping script
 │   ├── data_prediction.py       # Data preparation for ML
-│   ├── fix_ordering.py          # Data cleaning utilities
-│   └── nba_data_with_team_names.csv  # Scraped data
-├── requirements.txt             # Python dependencies
+|   ├── preditction_results.csv   # prediction results
+│   └── nba_scrape_data.csv  # Scraped data
 ├── README.md                    # Project documentation
 └── venv/                        # Virtual environment (not in git)
 ```
