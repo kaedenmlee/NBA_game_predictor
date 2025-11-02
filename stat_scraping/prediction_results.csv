@@ -1,0 +1,10 @@
+Date,Team,Opponent,Home,Actual_Won,Predicted_Won,Team_Score,Opponent_Score,Correct
+2025-04-15,Atlanta Hawks,Orlando Magic,0,0,1,95,120,0
+2025-04-16,Chicago Bulls,Miami Heat,1,0,1,90,109,0
+2025-04-16,Dallas Mavericks,Sacramento Kings,0,1,1,120,106,1
+2025-04-15,Golden State Warriors,Memphis Grizzlies,1,1,1,121,116,1
+2025-04-15,Memphis Grizzlies,Golden State Warriors,0,0,0,116,121,1
+2025-04-16,Miami Heat,Chicago Bulls,0,1,1,109,90,1
+2025-04-18,Miami Heat,Atlanta Hawks,0,1,1,123,114,1
+2025-04-15,Orlando Magic,Atlanta Hawks,1,1,1,120,95,1
+2025-04-16,Sacramento Kings,Dallas Mavericks,1,0,0,106,120,1

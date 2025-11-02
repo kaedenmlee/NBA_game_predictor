@@ -72,7 +72,7 @@ def scrape_nba_data_with_team_names():
         for i, team in enumerate(team_info):
             try:
                 print(f"Processing {team['team_name']} ({i+1}/{len(team_info)})")
-                time.sleep(1)
+                time.sleep(2)
                 # Get games data
                 games_url = f"https://www.basketball-reference.com{team['team_url'].replace('.html', '_games.html')}"
                 games_response = requests.get(games_url, headers=headers)
@@ -147,80 +147,23 @@ def scrape_nba_data_with_team_names():
     # Combine all data
     if all_data:
         combined_data = pd.concat(all_data, ignore_index=True)
-        
-        # Clean column names
-        column_mapping = {
-            'Team_Name': 'Team_Name',
-            'Team_Abbr': 'Team_Abbr',
-            'Season': 'Season',
-            'G': 'Game_Number',
-            'Date': 'Date',
-            'Start (ET)': 'Start_Time',
-            'Opponent': 'Opponent',
-            'Tm': 'Team_Score',
-            'Opp': 'Opponent_Score',
-            'W': 'Win',
-            'L': 'Loss',
-            'Streak': 'Streak',
-            'Attend.': 'Attendance',
-            'LOG': 'Game_Length',
-            'Notes': 'Notes',
-            'Game_Num': 'Game_Sequence',
-            'FG': 'Field_Goals_Made',
-            'FGA': 'Field_Goals_Attempted',
-            'FG%': 'Field_Goal_Percentage',
-            '3P': 'Three_Pointers_Made',
-            '3PA': 'Three_Pointers_Attempted',
-            '3P%': 'Three_Point_Percentage',
-            '2P': 'Two_Pointers_Made',
-            '2PA': 'Two_Pointers_Attempted',
-            '2P%': 'Two_Point_Percentage',
-            'FT': 'Free_Throws_Made',
-            'FTA': 'Free_Throws_Attempted',
-            'FT%': 'Free_Throw_Percentage',
-            'ORB': 'Offensive_Rebounds',
-            'DRB': 'Defensive_Rebounds',
-            'TRB': 'Total_Rebounds',
-            'AST': 'Assists',
-            'STL': 'Steals',
-            'BLK': 'Blocks',
-            'TOV': 'Turnovers',
-            'PF': 'Personal_Fouls',
-            'Home': 'Home'
-        }
-        
         # Select columns to keep
         columns_to_keep = [
             'Team_Name', 'Team_Abbr', 'Season', 'G', 'Date', 'Start (ET)', 'Opponent', 
-            'Tm', 'Opp', 'W', 'L', 'Streak', 'Attend.', 'LOG', 'Notes', 'Game_Num',
+            'Home','Tm', 'Opp', 'W', 'L', 'Streak', 'Attend.', 'LOG', 'Notes',
             'FG', 'FGA', 'FG%', '3P', '3PA', '3P%', '2P', '2PA', '2P%',
-            'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB', 'AST', 'STL', 'BLK', 'TOV', 'PF','Home'
+            'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB', 'AST', 'STL', 'BLK', 'TOV', 'PF'
         ]
         
-        df_clean = combined_data[columns_to_keep].copy()
-        df_clean = df_clean.rename(columns=column_mapping)
-        
-        # Reorder columns
-        column_order = [
-            'Team_Name', 'Team_Abbr', 'Season', 'Game_Number', 'Date', 'Start_Time', 'Opponent',
-            'Home','Team_Score', 'Opponent_Score', 'Win', 'Loss', 'Streak', 
-            'Attendance', 'Game_Length', 'Notes', 'Game_Sequence',
-            'Field_Goals_Made', 'Field_Goals_Attempted', 'Field_Goal_Percentage',
-            'Three_Pointers_Made', 'Three_Pointers_Attempted', 'Three_Point_Percentage',
-            'Two_Pointers_Made', 'Two_Pointers_Attempted', 'Two_Point_Percentage',
-            'Free_Throws_Made', 'Free_Throws_Attempted', 'Free_Throw_Percentage',
-            'Offensive_Rebounds', 'Defensive_Rebounds', 'Total_Rebounds',
-            'Assists', 'Steals', 'Blocks', 'Turnovers', 'Personal_Fouls'
-        ]
-        
-        df_final = df_clean[column_order]
+        df_final = combined_data[columns_to_keep].copy()
+
         
         # Convert Date column to datetime
         df_final['Date'] = pd.to_datetime(df_final['Date'], format='%a, %b %d, %Y', errors='coerce')
         # Sort by Team_Name, Season, and Date
         df_final = df_final.sort_values(['Team_Name', 'Season', 'Date']).reset_index(drop=True)
         # Reassign Game_Number to be sequential within each team/season
-        df_final['Game_Number'] = df_final.groupby(['Team_Name', 'Season']).cumcount() + 1
+        df_final['G'] = df_final.groupby(['Team_Name', 'Season']).cumcount() + 1
         # Convert Date back to string format for consistency
         df_final['Date'] = df_final['Date'].dt.strftime('%a, %b %d, %Y')
         # Save the data
