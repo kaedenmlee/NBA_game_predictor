@@ -95,11 +95,14 @@ lxml>=4.9.0
 
 ```
 NBA_game_predictor/
+├── data_prediction_methods
+|   ├── data_prediction.py       # Data preparation for ML
+|   └── preditction_results.csv   # prediction results
 ├── stat_scraping/
-|   ├── initial_scraping_tests.py    # initial scraping tests
-│   ├── final_scraping.py              # Main scraping script
-│   ├── data_prediction.py       # Data preparation for ML
-|   ├── preditction_results.csv   # prediction results
+|   ├── final_scraping.py            # Main scraping script
+|   ├── games_this_month.csv         # data on games this month
+|   ├── initial_scraping_tests.py    # intial scraping tests
+│   ├── monthly_games.py            # script to scrape games
 │   └── nba_scrape_data.csv  # Scraped data
 ├── README.md                    # Project documentation
 └── venv/                        # Virtual environment (not in git)
@@ -256,4 +259,4 @@ Email: kaedenmlee@gmail.com
 
 ---
 
-*Last Updated: November 1, 2025*
+*Last Updated: November 2, 2025*
