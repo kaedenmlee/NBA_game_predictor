@@ -11,7 +11,7 @@ def get_daily_games():
     # Define seasons
     month_name = datetime.datetime.now().strftime("%B")
     year = datetime.datetime.now().year
-    # date = datetime.datetime.now().strftime("%a, %b %-d, %Y")
+    date = datetime.datetime.now().strftime("%a, %b %-d, %Y")
 
     cols_needed = ['Date', 'Home/Neutral', 'Visitor/Neutral', 'Start (ET)']
 
