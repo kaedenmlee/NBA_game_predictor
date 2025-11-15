@@ -14,6 +14,8 @@ __pycache__/
 Thumbs.db
 
 # Python
+nba_model.pkl
+*.csv
 *.pyc
 *.pyo
 *.pyd

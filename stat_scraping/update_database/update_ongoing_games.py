@@ -1,6 +1,7 @@
 """
 update_ongoing_games.py
 Incrementally updates game_history with completed games AND stats since last update
+PLUS verifies prediction accuracy
 """
 
 import psycopg2
@@ -22,7 +23,7 @@ def get_last_update_date(season='2025-26'):
 
     query = """
         SELECT MAX(game_date) as last_date
-        FROM test
+        FROM game_history
         WHERE season = %s
     """
 
@@ -111,11 +112,7 @@ def scrape_team_games_since_date(team_name, team_abbr, start_date, season='2025-
         team_stats_only = team_stats_only[team_stats_only['Date'] > start_date].reset_index(
             drop=True)
 
-        # 3. Merge games and stats by game number
-        games['Game_Num'] = range(1, len(games) + 1)
-        team_stats_only['Game_Num'] = range(1, len(team_stats_only) + 1)
-
-        # Match by date instead (more reliable for partial season)
+        # 3. Merge games and stats by date
         merged = games.merge(
             team_stats_only[['Date', 'FG', 'FGA', 'FG%', '3P', '3PA', '3P%',
                              '2P', '2PA', '2P%', 'FT', 'FTA', 'FT%',
@@ -222,7 +219,7 @@ def insert_games_to_database(games_df):
     # Check for existing games
     cur.execute("""
         SELECT team_name, game_date, opponent
-        FROM test
+        FROM game_history
         WHERE season = '2025-26'
     """)
 
@@ -249,7 +246,7 @@ def insert_games_to_database(games_df):
     for _, row in new_games.iterrows():
         try:
             cur.execute("""
-                INSERT INTO test (
+                INSERT INTO game_history (
                     team_name, team_abbr, season, game_number, game_date, start_time,
                     opponent, home_status, team_score, opp_score,
                     win_number, loss_number, streak, attend, game_length, notes,
@@ -332,9 +329,197 @@ def insert_games_to_database(games_df):
     return inserted
 
 
+def update_scheduled_games_results():
+    """
+    Update scheduled_games table with actual scores from game_history
+    """
+    conn = psycopg2.connect(
+        dbname="nba_stats",
+        user="kaedenlee",
+        host="localhost"
+    )
+    cur = conn.cursor()
+
+    print("\nUpdating scheduled game results...")
+
+    # Find scheduled games that have completed but scores not yet recorded
+    query = """
+        SELECT 
+            sg.scheduled_game_id,
+            sg.game_date,
+            sg.home_team_id,
+            sg.away_team_id,
+            ht.team_name as home_team,
+            at.team_name as away_team
+        FROM scheduled_games sg
+        JOIN teams ht ON sg.home_team_id = ht.team_id
+        JOIN teams at ON sg.away_team_id = at.team_id
+        WHERE sg.completed = FALSE
+          AND sg.game_date < CURRENT_DATE
+    """
+
+    incomplete_games = pd.read_sql(query, conn)
+
+    if incomplete_games.empty:
+        print("  No scheduled games to update")
+        cur.close()
+        conn.close()
+        return 0
+
+    print(f"  Found {len(incomplete_games)} scheduled games to check")
+
+    updated = 0
+    for _, game in incomplete_games.iterrows():
+        # Get actual results from game_history
+        cur.execute("""
+            SELECT team_score, opp_score
+            FROM game_history
+            WHERE team_name = %s
+              AND opponent = %s
+              AND game_date = %s
+              AND season = '2025-26'
+        """, (game['home_team'], game['away_team'], game['game_date']))
+
+        result = cur.fetchone()
+
+        if result:
+            home_score, away_score = result
+
+            # Update scheduled_games
+            cur.execute("""
+                UPDATE scheduled_games
+                SET home_score = %s,
+                    away_score = %s,
+                    completed = TRUE
+                WHERE scheduled_game_id = %s
+            """, (int(home_score), int(away_score), game['scheduled_game_id']))
+
+            updated += 1
+            print(
+                f"    {game['away_team']} @ {game['home_team']}: {away_score}-{home_score}")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"  ✓ Updated {updated} scheduled games with results")
+    return updated
+
+
+def update_prediction_results():
+    """
+    Update predictions table with actual game results
+    Marks predictions as correct/incorrect
+    """
+    conn = psycopg2.connect(
+        dbname="nba_stats",
+        user="kaedenlee",
+        host="localhost"
+    )
+    cur = conn.cursor()
+
+    print("\nUpdating prediction results...")
+
+    # Get predictions that don't have actual results yet
+    query = """
+        SELECT 
+            p.prediction_id,
+            p.scheduled_game_id,
+            p.home_team_id,
+            p.away_team_id,
+            p.game_date,
+            p.predicted_home_win,
+            p.predicted_winner_id,
+            sg.home_score,
+            sg.away_score,
+            sg.completed
+        FROM predictions p
+        JOIN scheduled_games sg ON p.scheduled_game_id = sg.scheduled_game_id
+        WHERE p.actual_home_win IS NULL
+          AND sg.completed = TRUE
+          AND sg.home_score IS NOT NULL
+          AND sg.away_score IS NOT NULL
+    """
+
+    predictions_to_update = pd.read_sql(query, conn)
+
+    if predictions_to_update.empty:
+        print("  No predictions to update")
+        cur.close()
+        conn.close()
+        return 0
+
+    print(f"  Found {len(predictions_to_update)} predictions to verify")
+
+    updated = 0
+    for _, pred in predictions_to_update.iterrows():
+        # Determine actual winner
+        actual_home_win = pred['home_score'] > pred['away_score']
+        actual_winner_id = pred['home_team_id'] if actual_home_win else pred['away_team_id']
+
+        # Check if prediction was correct
+        was_correct = (pred['predicted_winner_id'] == actual_winner_id)
+
+        # Update prediction
+        cur.execute("""
+            UPDATE predictions
+            SET actual_home_win = %s,
+                was_correct = %s
+            WHERE prediction_id = %s
+        """, (actual_home_win, was_correct, pred['prediction_id']))
+
+        updated += 1
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"  ✓ Updated {updated} prediction results")
+    return updated
+
+
+def show_prediction_accuracy():
+    """
+    Display overall prediction accuracy statistics
+    """
+    conn = psycopg2.connect(
+        dbname="nba_stats",
+        user="kaedenlee",
+        host="localhost"
+    )
+
+    query = """
+        SELECT 
+            COUNT(*) as total_predictions,
+            SUM(CASE WHEN was_correct = TRUE THEN 1 ELSE 0 END) as correct_predictions,
+            ROUND(
+                SUM(CASE WHEN was_correct = TRUE THEN 1 ELSE 0 END)::numeric / 
+                COUNT(*)::numeric * 100, 
+                2
+            ) as accuracy_percentage
+        FROM predictions
+        WHERE actual_home_win IS NOT NULL
+    """
+
+    stats = pd.read_sql(query, conn)
+    conn.close()
+
+    if not stats.empty and stats['total_predictions'].iloc[0] > 0:
+        print("\n" + "="*60)
+        print("PREDICTION ACCURACY SUMMARY")
+        print("="*60)
+        print(
+            f"Total Predictions Verified: {int(stats['total_predictions'].iloc[0])}")
+        print(
+            f"Correct Predictions: {int(stats['correct_predictions'].iloc[0])}")
+        print(f"Accuracy: {stats['accuracy_percentage'].iloc[0]}%")
+        print("="*60)
+
+
 def update_ongoing_games():
     """
     Main function: Update database with games AND stats since last update
+    PLUS update prediction results
     """
     print("="*60)
     print("NBA Game History Update (With Stats)")
@@ -369,48 +554,58 @@ def update_ongoing_games():
 
     if not all_new_games:
         print("\nNo new completed games found")
-        return
+    else:
+        # 4. Combine all teams' data
+        combined = pd.concat(all_new_games, ignore_index=True)
+        print(f"\nTotal new games found: {len(combined)}")
 
-    # 4. Combine all teams' data
-    combined = pd.concat(all_new_games, ignore_index=True)
-    print(f"\nTotal new games found: {len(combined)}")
-    # combined.to_csv('new_games.csv', index=False)
+        # 5. Transform to database format
+        games_formatted = transform_to_game_history_format(combined)
 
-    # 5. Transform to database format
-    games_formatted = transform_to_game_history_format(combined)
-    # games_formatted.to_csv('formatted_games.csv', index=False)
+        # 6. Insert into database
+        print("\nInserting into database...")
+        inserted = insert_games_to_database(games_formatted)
 
-    # 6. Insert into database
-    print("\nInserting into database...")
-    inserted = insert_games_to_database(games_formatted)
+        print("\n" + "="*60)
+        print(f"✓ Game History Update Complete: {inserted} new records added")
+        print("="*60)
+
+        # 7. Show summary
+        conn = psycopg2.connect(
+            dbname="nba_stats",
+            user="kaedenlee",
+            host="localhost"
+        )
+
+        summary = pd.read_sql("""
+            SELECT 
+                season,
+                COUNT(*) as total_games,
+                MIN(game_date) as first_game,
+                MAX(game_date) as last_game
+            FROM game_history
+            WHERE season = '2025-26'
+            GROUP BY season
+        """, conn)
+
+        conn.close()
+
+        if not summary.empty:
+            print("\nCurrent Season Summary:")
+            print(summary.to_string(index=False))
+
+    # 8. Update scheduled_games with results
+    update_scheduled_games_results()
+
+    # 9. Update prediction results
+    update_prediction_results()
+
+    # 10. Show prediction accuracy
+    show_prediction_accuracy()
 
     print("\n" + "="*60)
-    print(f"✓ Update Complete: {inserted} new records added")
+    print("✓ Complete Update Finished!")
     print("="*60)
-
-    # 7. Show summary
-    conn = psycopg2.connect(
-        dbname="nba_stats",
-        user="kaedenlee",
-        host="localhost"
-    )
-
-    summary = pd.read_sql("""
-        SELECT 
-            season,
-            COUNT(*) as total_games,
-            MIN(game_date) as first_game,
-            MAX(game_date) as last_game
-        FROM test
-        WHERE season = '2025-26'
-        GROUP BY season
-    """, conn)
-
-    conn.close()
-
-    if not summary.empty:
-        print("\nCurrent Season Summary:")
-        print(summary.to_string(index=False))
 
 
 if __name__ == "__main__":
