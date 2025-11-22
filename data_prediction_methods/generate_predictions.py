@@ -27,6 +27,8 @@ def get_games_for_date(date):
     Get games for a specific date from either scheduled_games or game_history
     """
     conn = get_db_connection()
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
 
     # First try scheduled_games
     query_scheduled = """
@@ -322,4 +324,4 @@ if __name__ == "__main__":
     predictions = generate_predictions()
 
     # Or generate for specific date:
-    # predictions = generate_predictions(date="2025-11-13")
+    # predictions = generate_predictions(date="2025-11-20")

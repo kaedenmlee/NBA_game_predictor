@@ -1,22 +1,33 @@
-# Virtual Environment
-venv/
-env/
-*.pyc
-__pycache__/
+# Add to .gitignore at root of NBA_game_predictor
 
-# IDE
-.vscode/
-.idea/
-*.swp
+# Java/Spring Boot
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/.idea/
+backend/*.iml
+backend/*.iws
+backend/*.ipr
 
-# OS
-.DS_Store
-Thumbs.db
+# Application properties with credentials
+backend/src/main/resources/application.properties
+
+# Build files
+*.class
+*.log
+*.jar
+*.war
 
 # Python
-nba_model.pkl
-*.csv
-*.pyc
-*.pyo
-*.pyd
 __pycache__/
+*.pyc
+venv/
+env/
+
+# Models (if large)
+models/*.pkl
+
+# CSV data files (optional - if they're large)
+*.csv
+
+# macOS
+.DS_Store
